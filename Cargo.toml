@@ -1,0 +1,20 @@
+[package]
+name = "gestordd"
+version = "0.1.0"
+edition = "2021"
+description = "Gestor visual e interactivo de espacio en disco para terminal con soporte completo de mouse"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+rayon = "1.10"
+trash = "5"
+dirs = "5"
+libc = "0.2"
+unicode-width = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
