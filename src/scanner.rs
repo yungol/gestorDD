@@ -82,10 +82,17 @@ impl ScanShared {
 
 fn should_skip_path(path: &Path) -> bool {
     let s = path.to_string_lossy();
-    matches!(
-        s.as_ref(),
-        "/proc" | "/sys" | "/dev" | "/run" | "/var/run" | "/sys/fs/cgroup"
-    )
+    #[cfg(target_os = "macos")]
+    {
+        matches!(s.as_ref(), "/dev" | "/System/Volumes" | "/Volumes")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        matches!(
+            s.as_ref(),
+            "/proc" | "/sys" | "/dev" | "/run" | "/var/run" | "/sys/fs/cgroup"
+        )
+    }
 }
 
 pub fn spawn_scan(root_path: PathBuf, tx: Sender<ScanMessage>, cancel: Arc<AtomicBool>) {
@@ -390,6 +397,7 @@ pub fn sort_clean_targets(targets: &mut [CleanTarget]) {
     });
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn scan_base_clean_targets(home: &Path) -> Vec<CleanTarget> {
     let mut targets = Vec::new();
 
@@ -624,6 +632,257 @@ pub fn scan_base_clean_targets(home: &Path) -> Vec<CleanTarget> {
             delete_contents_only: false,
             use_trash: false,
             command_hint: Some("sudo journalctl --vacuum-time=7d".into()),
+        });
+    }
+
+    sort_clean_targets(&mut targets);
+    targets
+}
+
+#[cfg(target_os = "macos")]
+pub fn scan_base_clean_targets(home: &Path) -> Vec<CleanTarget> {
+    let mut targets = Vec::new();
+    let caches = home.join("Library/Caches");
+
+    // 1. Papelera de reciclaje (~/.Trash)
+    let trash_dir = home.join(".Trash");
+    let (trash_size, trash_count) = dir_size_quick(&trash_dir);
+    if trash_size > 0 || trash_count > 0 {
+        targets.push(CleanTarget {
+            name: "Papelera de reciclaje".into(),
+            description: "Archivos ya eliminados en ~/.Trash esperando vaciado definitivo.".into(),
+            paths: vec![trash_dir],
+            size: trash_size,
+            item_count: trash_count,
+            safety: SafetyLevel::Safe,
+            selected: true,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 2. Caché de navegadores
+    let browser_candidates = [
+        caches.join("Google/Chrome"),
+        caches.join("Firefox"),
+        caches.join("org.mozilla.firefox"),
+        caches.join("BraveSoftware/Brave-Browser"),
+        caches.join("com.microsoft.edgemac"),
+        caches.join("com.vivaldi.Vivaldi"),
+        caches.join("company.thebrowser.Browser"),
+    ];
+    let mut browser_paths = Vec::new();
+    let mut browser_size = 0u64;
+    let mut browser_count = 0u64;
+    for p in browser_candidates {
+        if p.exists() {
+            let (s, c) = dir_size_quick(&p);
+            if s > 0 {
+                browser_size += s;
+                browser_count += c;
+                browser_paths.push(p);
+            }
+        }
+    }
+    if browser_size > 0 {
+        targets.push(CleanTarget {
+            name: "Caché de navegadores".into(),
+            description: "Temporales web (Chrome/Firefox/Brave/Arc). No borra claves ni historial."
+                .into(),
+            paths: browser_paths,
+            size: browser_size,
+            item_count: browser_count,
+            safety: SafetyLevel::Safe,
+            selected: true,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 3. Caché de Homebrew
+    let brew_cache = caches.join("Homebrew");
+    let (brew_size, brew_count) = dir_size_quick(&brew_cache);
+    if brew_size > 0 {
+        targets.push(CleanTarget {
+            name: "Caché de Homebrew".into(),
+            description: "Instaladores descargados en ~/Library/Caches/Homebrew.".into(),
+            paths: vec![brew_cache],
+            size: brew_size,
+            item_count: brew_count,
+            safety: SafetyLevel::Safe,
+            selected: true,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 4. Caché de Python (pip / uv)
+    let py_candidates = [
+        caches.join("pip"),
+        caches.join("uv"),
+        home.join(".cache/pip"),
+        home.join(".cache/uv"),
+    ];
+    let mut py_paths = Vec::new();
+    let mut py_size = 0u64;
+    let mut py_count = 0u64;
+    for p in py_candidates {
+        if p.exists() {
+            let (s, c) = dir_size_quick(&p);
+            if s > 0 {
+                py_size += s;
+                py_count += c;
+                py_paths.push(p);
+            }
+        }
+    }
+    if py_size > 0 {
+        targets.push(CleanTarget {
+            name: "Caché de Python (pip / uv)".into(),
+            description: "Paquetes descargados en caché. Se vuelven a bajar si hace falta.".into(),
+            paths: py_paths,
+            size: py_size,
+            item_count: py_count,
+            safety: SafetyLevel::Safe,
+            selected: true,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 5. Caché de Node (npm / yarn / pnpm)
+    let node_candidates = [
+        home.join(".npm/_cacache"),
+        caches.join("Yarn"),
+        home.join("Library/pnpm/store"),
+        caches.join("pnpm"),
+        home.join(".cache/yarn"),
+        home.join(".cache/pnpm"),
+        home.join(".cache/node-gyp"),
+    ];
+    let mut node_paths = Vec::new();
+    let mut node_size = 0u64;
+    let mut node_count = 0u64;
+    for p in node_candidates {
+        if p.exists() {
+            let (s, c) = dir_size_quick(&p);
+            if s > 0 {
+                node_size += s;
+                node_count += c;
+                node_paths.push(p);
+            }
+        }
+    }
+    if node_size > 0 {
+        targets.push(CleanTarget {
+            name: "Caché de Node (npm / yarn / pnpm)".into(),
+            description: "Descargas cacheadas de paquetes JS/TS.".into(),
+            paths: node_paths,
+            size: node_size,
+            item_count: node_count,
+            safety: SafetyLevel::Safe,
+            selected: true,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 6. Caché de Rust (cargo)
+    let cargo_cache = home.join(".cargo/registry/cache");
+    let (cargo_size, cargo_count) = dir_size_quick(&cargo_cache);
+    if cargo_size > 0 {
+        targets.push(CleanTarget {
+            name: "Caché de crates Rust (Cargo)".into(),
+            description: "Archivos .crate descargados en ~/.cargo/registry/cache.".into(),
+            paths: vec![cargo_cache],
+            size: cargo_size,
+            item_count: cargo_count,
+            safety: SafetyLevel::Safe,
+            selected: false,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 7. Xcode DerivedData
+    let xcode_derived = home.join("Library/Developer/Xcode/DerivedData");
+    let (xcode_size, xcode_count) = dir_size_quick(&xcode_derived);
+    if xcode_size > 50 * 1024 * 1024 {
+        targets.push(CleanTarget {
+            name: "Xcode DerivedData".into(),
+            description: "Compilaciones temporales de Xcode (se regeneran al compilar).".into(),
+            paths: vec![xcode_derived],
+            size: xcode_size,
+            item_count: xcode_count,
+            safety: SafetyLevel::Review,
+            selected: false,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
+        });
+    }
+
+    // 8. Descargas antiguas (> 30 días)
+    let dl_dirs = [home.join("Downloads"), home.join("Descargas")];
+    let cutoff = SystemTime::now()
+        .checked_sub(Duration::from_secs(30 * 24 * 3600))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let mut old_dl_paths = Vec::new();
+    let mut old_dl_size = 0u64;
+    let mut old_dl_count = 0u64;
+    for d in dl_dirs {
+        if let Ok(rd) = fs::read_dir(&d) {
+            for entry in rd.flatten() {
+                let p = entry.path();
+                if let Ok(m) = fs::symlink_metadata(&p) {
+                    if let Ok(mtime) = m.modified() {
+                        if mtime < cutoff {
+                            let (s, c) = dir_size_quick(&p);
+                            old_dl_size += s;
+                            old_dl_count += c.max(1);
+                            old_dl_paths.push(p);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if old_dl_size > 0 {
+        targets.push(CleanTarget {
+            name: "Descargas antiguas (> 30 días)".into(),
+            description: "Archivos viejos en Downloads (se envían a la Papelera).".into(),
+            paths: old_dl_paths,
+            size: old_dl_size,
+            item_count: old_dl_count,
+            safety: SafetyLevel::Review,
+            selected: false,
+            delete_contents_only: false,
+            use_trash: true,
+            command_hint: None,
+        });
+    }
+
+    // 9. Registros de aplicaciones (~/Library/Logs)
+    let user_logs = home.join("Library/Logs");
+    let (logs_size, logs_count) = dir_size_quick(&user_logs);
+    if logs_size > 50 * 1024 * 1024 {
+        targets.push(CleanTarget {
+            name: "Registros de usuario (~/Library/Logs)".into(),
+            description: "Archivos de log antiguos de aplicaciones.".into(),
+            paths: vec![user_logs],
+            size: logs_size,
+            item_count: logs_count,
+            safety: SafetyLevel::Review,
+            selected: false,
+            delete_contents_only: true,
+            use_trash: false,
+            command_hint: None,
         });
     }
 

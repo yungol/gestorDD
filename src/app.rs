@@ -497,20 +497,40 @@ impl App {
     }
 
     pub fn open_external(&mut self, path: &Path) {
-        let target = if path.is_dir() {
-            path
-        } else {
-            path.parent().unwrap_or(path)
+        #[cfg(target_os = "macos")]
+        let (cmd_name, mut cmd, display_target) = {
+            let mut c = Command::new("open");
+            if path.is_dir() {
+                c.arg(path);
+            } else {
+                c.arg("-R").arg(path);
+            }
+            ("open", c, path)
         };
-        match Command::new("xdg-open")
-            .arg(target)
+
+        #[cfg(not(target_os = "macos"))]
+        let (cmd_name, mut cmd, display_target) = {
+            let target = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(path)
+            };
+            let mut c = Command::new("xdg-open");
+            c.arg(target);
+            ("xdg-open", c, target)
+        };
+
+        match cmd
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
         {
-            Ok(_) => self.show_toast(format!("Abriendo en gestor de archivos: {}", target.display()), false),
-            Err(e) => self.show_toast(format!("No se pudo abrir xdg-open: {}", e), true),
+            Ok(_) => self.show_toast(
+                format!("Abriendo en gestor de archivos: {}", display_target.display()),
+                false,
+            ),
+            Err(e) => self.show_toast(format!("No se pudo abrir {}: {}", cmd_name, e), true),
         }
     }
 

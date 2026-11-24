@@ -2,6 +2,10 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  exec "${PROJECT_DIR}/install-macos.sh" "$@"
+fi
 BIN_SRC="${PROJECT_DIR}/target/release/gestordd"
 ICON_SRC="${PROJECT_DIR}/assets/gestordd.svg"
 LAUNCH_SRC="${PROJECT_DIR}/assets/gestordd-app.sh"

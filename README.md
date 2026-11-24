@@ -28,6 +28,15 @@ cargo build --release
 
 Esto instala `gestordd` en `~/.local/bin`, crea el acceso directo con icono en el menú de aplicaciones y en tu Escritorio para abrirlo con doble clic.
 
+## Compilar e instalar como app en macOS
+
+```bash
+cargo build --release
+./install-app.sh
+```
+
+Esto crea **GestorDD.app** con su icono en `/Applications` (o `~/Applications`) para abrirlo con doble clic, desde el Dock o con Spotlight (`Cmd+Espacio`), además de instalar `gestordd` en `~/.local/bin`. En macOS usa `open` para revelar archivos/carpetas en Finder, la Papelera nativa (`~/.Trash`) y detecta cachés de macOS (`~/Library/Caches/...`, Homebrew, Xcode DerivedData, pip/uv, npm/yarn/pnpm, Cargo y Downloads >30 días).
+
 ## Controles principales
 
 - **Mouse:** Clic en pestañas, botones, categorías y filas; doble clic para entrar a carpetas; clic derecho para subir de carpeta; rueda del mouse para desplazarte.
