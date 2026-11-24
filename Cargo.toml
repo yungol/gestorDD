@@ -2,6 +2,9 @@
 name = "gestordd"
 version = "0.1.0"
 edition = "2021"
+authors = ["Juan David <jdjara@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/yungol/gestorDD"
 description = "Gestor visual e interactivo de espacio en disco para terminal con soporte completo de mouse"
 
 [dependencies]

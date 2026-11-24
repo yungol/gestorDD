@@ -32,3 +32,7 @@ Esto instala `gestordd` en `~/.local/bin`, crea el acceso directo con icono en e
 
 - **Mouse:** Clic en pestañas, botones, categorías y filas; doble clic para entrar a carpetas; clic derecho para subir de carpeta; rueda del mouse para desplazarte.
 - **Teclado:** `1`/`2`/`3`/`Tab` (pestañas), `↑`/`↓` (mover), `Enter` (abrir/marcar), `Backspace` (subir), `/` (filtrar), `d` (Papelera), `Shift+D` (borrar definitivo), `s` (ordenar), `r` (re-escanear), `?` (ayuda), `q` (salir).
+
+## Autor y licencia
+
+Creado por **Juan David** ([@yungol](https://github.com/yungol)) — Licencia [MIT](LICENSE).
